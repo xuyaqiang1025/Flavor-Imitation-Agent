@@ -83,63 +83,79 @@
 
 ---
 
-## 🚀 使用指南 (User Guide)
+## 🚀 操作手册与使用指南 (Operational Manual)
 
-### 环境准备
-确保安装 Python 3.8+ 及依赖：
-```bash
-pip install pandas openpyxl streamlit plotly openai
-```
+本系统结合了**计算化学（迭代减法）**与**大语言模型 RAG 推理**，专门用于深度解析 GC-MS 电子烟油及香精图谱，实现天然提取物与合成单体的高精度剥离。
 
-### 启动界面
-本项目提供专业的 Web 仪表盘（基于 Streamlit）：
-```bash
-streamlit run app.py
-```
-*(注：如果遇到路径问题，请使用绝对路径运行)*
+### 📍 一、 核心工作流 (Standard Workflow)
 
-### 操作步骤
-1.  **上传数据**: 在左侧上传您的 GC-MS `.csv` 文件。
-2.  **参数配置**: 选择是否自动去除溶剂、设置最大天然物识别数量。
-3.  **查看结果**:
-    *   **Tag 1 [配方分析]**: 查看 AI 拆解后的配方表（可直接编辑）。
-    *   **Tag 2 [智能调香师]**:
-        *   在侧边栏输入 **API Key** (OpenAI/DeepSeek)。
-        *   输入反馈："太甜了"。
-        *   点击 "询问 AI"，获取调整建议。
+1. **环境准备与启动**
+   * 确保 Python 环境已安装最新依赖：`pip install pandas streamlit plotly chromadb openai openpyxl`
+   * 在项目根目录终端执行命令启动仪表盘：`streamlit run app.py`
 
-### 目录结构说明
-```text
-Flavor Imitation Agent/
-├── data/
-│   ├── raw_gcms/          # [输入] 您的 GC-MS 原始文件
-│   └── inventory/         # [配置] 您的原料清单 (inventory.csv)
-├── src/
-│   ├── main.py            # 命令行入口
-│   ├── ingestion/         # 解析与清洗
-│   ├── engine/            # 核心算法
-│   ├── knowledge/         # 数据库
-│   └── logic/             # 验证与 LLM Agent
-└── app.py                 # UI 界面入口
-```
+2. **配置 AI 引擎 (必加项)**
+   * 在界面左侧的【AI 配置】栏，选择服务商（如 `DeepSeek` 或 `OpenAI`）。
+   * 填入对应的 API Key（此密钥不会在本地保存）。
+   * *注意：不填写 API Key 系统将降级为纯数学减法，失去动态发现未知副产物和高阶 RAG 定性推理的能力。*
+
+3. **上传色谱数据**
+   * 在左侧【数据输入】上传通过安捷伦/岛津仪器导出的 GC-MS CSV 汇总表。
+   * 数据表必须包含：`cas`、`concentration_mg_kg`（或面积/含量列）、`compound_name_cn/en`。
+   * 引擎会自动开启 **虚拟反应器 (Virtual Reactor)** 扫描是否存在缩醛/缩酮反应副产物，并在后台按分子量原理进行亲本还原。
+
+4. **查看解卷积结果**
+   * 点击右主界面的【📊 配方分析】选项卡，查看精确剥离后的配方表。
+   * **强烈建议展开 【🛠️ 查看 AI 解析推理日志 (Reasoning Trace)】** 面板，这里记录了 Agent 最核心的四步反推过程（Traceback 溯源、CAS 矩阵相似度打分、LLM 定性证据、中位数定量计算）。
 
 ---
 
-## 📝 示例 (Example)
+### 🧬 二、 核心进阶：如何扩充“天然特征指纹库”
 
-**输入文件**: `Sample1.csv` (某款弗吉尼亚烟草口味烟油)
+系统内置了部分基础精油数据，但**本系统越用越强的关键，在于持续喂给它您实验室的独家 GC-MS 数据或文献数据。**
 
-**分析过程**:
-1.  **解析**: 读取到 140 个峰。
-2.  **清洗**: 剔除 PG (溶剂)、Nicotine (尼古丁)、以及 3 个被识别为缩醛的杂质峰。剩余 21 个有效香原料。
-3.  **指纹识别**:
-    *   发现 *Quinoline (喹啉)* 和 *Trimethylpyrazine*。
-    *   匹配到 `tobacco_absolute` (烟草浸膏) 指纹。
-    *   计算出烟草浸膏约占 1.5%。
-    *   从图谱中扣除这 1.5% 浸膏对应的单体量。
-4.  **生成配方**:
-    *   天然: 烟草浸膏 1.5%
-    *   合成: 乙基麦芽酚 42% (主要甜味), 苯甲酸 36% (酸感/防腐), WS-23 15% (凉味)...
-5.  **验证**: 提示 "苯甲酸 沸点较高，留意积碳风险"。
+#### 1. 准备您的数据模板
+使用 Excel 打开项目目录下的模板文件：`data/inventory/my_extracts_template.csv`。
 
-**最终输出**: 一份可以直接拿去实验室调配的 Excel 配方表。
+| 列名 (必须小写) | 填写说明 (非常重要) |
+| :--- | :--- |
+| `id` | 天然精油/浸膏的唯一英文标识，如：`orange_oil_brazil` |
+| `name_cn` | 中文名称，将直接显示在最终的配方结果中，如：`甜橙精油 (巴西)` |
+| `description` | 简要描述该精油的感官特征。 |
+| **`markers`** | **最核心字段！这是告诉大模型用来“定性”的绝对凭证。** 请填写该精油**最独有的微量标志物**（如：橙油填 `Octanal, Decanal`，勿填大家都有的 `Limonene`）。 |
+| **`composition_json`** | **数学定量矩阵。** 必须为合法 JSON 数组。**成分维度不限**（3个主成分或150个全成分均可），系统会自动降维算余弦相似度。 |
+
+**`composition_json` 填写示例**：
+`[{"cas":"5989-27-5", "name":"Limonene", "pct":90.0}, {"cas":"112-31-2", "name":"Decanal", "pct":1.5}]`
+
+#### 2. 导入与更新向量库 (ChromaDB)
+1. 在网页界面左侧边栏，找到并展开 **【📥 导入自定义指纹数据】**。
+2. 支持 **CSV / Excel (.xlsx) / Markdown** 三种格式。
+3. 拖拽文件后点击 **【🔄 导入并更新向量库】**。
+4. 系统会将高维浓度分布转化为数学向量，永久写入本地 ChromaDB。断电不丢失。
+
+---
+
+### ⚠️ 三、常见排错 (Troubleshooting)
+
+1. **配方加起来不到或超过 100%？**
+   * 正常现象。系统采用绝对浓度 (mg/kg) 独立换算。如果原始 GC-MS 数据的总检出物质未完全覆盖，或天然提取物组分天然存在比例波动，都会导致总和不等于 100%。您可以在生成的配方表中手动干预归一化。
+2. **某种天然精油没被识别出来（即使库里有）？**
+   * 极大概率是检测图谱里遗漏了您在 CSV 中设定的 `markers` (标志物)。系统硬性规定：**大模型必须验证 Marker 存在，才能“确诊”该天然物。** 建议修改 CSV 中的 markers 设定（选择浓度更高或更普适的专属成分），然后重新导入。
+3. **遇到 ImportError 模块冲突**
+   * 若二次开发，请确保遵循“自下而上”的引用关系。避免核心计算引擎（如 `deconvoluter.py` 和 `rag_inference.py`）发生循环导入。
+
+---
+
+## 目录结构说明
+```text
+Flavor Imitation Agent/
+├── data/
+│   ├── raw_gcms/          # [输入] GC-MS 原始文件
+│   └── inventory/         # [配置] 您的原料清单及精油导入模板
+├── src/
+│   ├── ingestion/         # 包括 Virtual Reactor 与清洗器
+│   ├── engine/            # 包括 Hybrid Deconvoluter (四步解卷积混合引擎)
+│   ├── knowledge/         # Inventory Manager 与 Vector DB Builder
+│   └── logic/             # 验证与 LLM Sensory Agent
+└── app.py                 # UI 界面入口 (Streamlit)
+```

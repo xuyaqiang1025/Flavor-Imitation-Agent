@@ -190,6 +190,20 @@ def main():
             col3.metric("识别天然物", len(result.naturals))
             col4.metric("解析置信度", f"{result.confidence:.1f}%")
 
+            # Reasoning Trace Expander
+            with st.expander("🛠️ 查看 AI 解析推理日志 (Reasoning Trace)", expanded=False):
+                if result.reasoning:
+                    for line in result.reasoning:
+                        st.markdown(f"- {line}")
+                else:
+                    st.info("无推理日志")
+                
+                if result.warnings:
+                    st.markdown("---")
+                    st.markdown("**警告信息:**")
+                    for w in result.warnings:
+                        st.warning(f"⚠ {w}")
+
             # Tabs
             tab1, tab2, tab3 = st.tabs(["📊 配方分析", "🧠 智能调香师 (LLM)", "📑 原始数据"])
 
