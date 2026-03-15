@@ -12,6 +12,8 @@ sys.path.insert(0, str(__file__).rsplit('src', 1)[0] + 'src')
 
 from knowledge.natural_fingerprints import NaturalFingerprintDB, NaturalFingerprint
 from knowledge.inventory_manager import InventoryManager
+from knowledge.vector_db_builder import VectorDBBuilder
+from engine.rag_inference import RAGDeconvoluter
 
 
 @dataclass
@@ -38,10 +40,20 @@ class DeconvolutionEngine:
     def __init__(
         self,
         fingerprint_db: Optional[NaturalFingerprintDB] = None,
-        inventory_mgr: Optional[InventoryManager] = None
+        inventory_mgr: Optional[InventoryManager] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None
     ):
         self.fp_db = fingerprint_db or NaturalFingerprintDB()
         self.inventory = inventory_mgr
+        self.api_key = api_key
+        self.base_url = base_url
+        
+        vector_db = VectorDBBuilder()
+        if vector_db.is_available() and api_key:
+             self.rag_engine = RAGDeconvoluter(vector_db_builder=vector_db, api_key=api_key, base_url=base_url)
+        else:
+             self.rag_engine = None
 
     def analyze(
         self,
@@ -66,6 +78,17 @@ class DeconvolutionEngine:
             result.warnings.append("No CAS column found in data")
             return result
 
+        # STRATEGY: Default to RAG Logic if configured, otherwise fallback to Hardcoded Track A
+        if self.rag_engine and self.rag_engine.is_configured():
+             print("[Deconvoluter] Using RAG / LLM Track...")
+             result.reasoning.append("Using LLM RAG-based Deconvolution Track.")
+             rag_result = self.rag_engine.analyze(gcms_df, max_retrieval=max_naturals)
+             if len(rag_result.naturals) > 0:
+                 return rag_result
+             else:
+                 result.reasoning.append("RAG failed to find naturals, falling back to Track A.")
+
+        print("[Deconvoluter] Using Local Subtraction Track A...")
         # Step 1: Get all detected CAS numbers
         detected_cas = gcms_df['cas'].dropna().tolist()
         cas_to_conc = dict(zip(gcms_df['cas'], gcms_df['concentration_mg_kg']))

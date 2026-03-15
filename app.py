@@ -44,7 +44,15 @@ st.markdown("""
 
 @st.cache_resource
 def load_resources():
-    """Load heavy resources like inventory database."""
+    """Load heavy resources like inventory database and Vector DB."""
+    # Ensure Vector DB is initialized
+    from knowledge.vector_db_builder import VectorDBBuilder
+    vdb = VectorDBBuilder()
+    if vdb.is_available():
+        # Check if empty
+        if vdb.collection.count() == 0:
+             vdb.build_from_builtin()
+             
     # Use path relative to this script file
     base_dir = Path(__file__).parent
     inventory_path = base_dir / "data" / "inventory" / "sample_inventory.csv"
@@ -99,11 +107,28 @@ def main():
                     f.write(uploaded_file.getbuffer())
                 
                 df_raw = parse_gcms_csv("temp_upload.csv")
+                # predict_acetals is usually called inside cleaner or manually here
+                # Our new clean_gcms_data does NOT call predict_acetals automatically inside it
+                # So we will extract and display if necessary
+                predictions = predict_acetals(df_raw, api_key=api_key, base_url=base_url)
+                if len(predictions) > 0:
+                     st.toast(f"Virtual Reactor predicted {len(predictions)} byproducts to exclude!")
+
                 df_clean = clean_gcms_data(
                     df_raw, 
                     remove_solvents=clean_solvents,
                     remove_nicotine=True
                 )
+                
+                # Dynamic exclusion of LLM-predicted acetals
+                if predictions and 'cas' in df_clean.columns:
+                     # For now, just exclude by name if CAS isn't reliable from LLM
+                     # but clean_gcms_data works by blocklist. 
+                     # To be fully dynamic, we filter them manually:
+                     predicted_names = [p['predicted_acetal_name'].lower() for p in predictions if 'predicted_acetal_name' in p]
+                     if 'compound_name_cn' in df_clean.columns:
+                          df_clean = df_clean[~df_clean['compound_name_cn'].str.lower().isin(predicted_names)]
+                
                 df_merged = merge_duplicate_compounds(df_clean)
 
                 # Match Inventory
@@ -114,7 +139,7 @@ def main():
 
             # 2. Deconvolution Analysis
             with st.spinner("正在进行智能解卷积..."):
-                engine = DeconvolutionEngine()
+                engine = DeconvolutionEngine(api_key=api_key if api_key else None, base_url=base_url if base_url else None)
                 result = engine.analyze(df_matched, max_naturals=max_naturals)
                 formula_df = engine.generate_formula(result, df_matched)
 

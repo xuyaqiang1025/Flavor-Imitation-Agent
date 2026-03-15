@@ -7,6 +7,7 @@ Implements the "Virtual Reactor" logic to predict and exclude acetals/artifacts.
 import pandas as pd
 from typing import Set, List, Dict
 import re
+from .reactor_agent import VirtualReactorAgent
 
 
 # ==================== BLOCKLISTS ====================
@@ -133,19 +134,38 @@ def clean_gcms_data(
     return df_clean.reset_index(drop=True)
 
 
-def predict_acetals(df: pd.DataFrame) -> List[Dict]:
+def predict_acetals(df: pd.DataFrame, api_key: str = None, base_url: str = None) -> List[Dict]:
     """
-    Predict potential acetals based on detected aldehydes.
-    Uses the "Virtual Reactor" logic: Aldehyde + PG -> Acetal.
+    Predict potential reaction byproducts.
+    Uses LLM Virtual Reactor if API key is provided, otherwise falls back to hardcoded logic.
 
     Args:
         df: GC-MS DataFrame (pre or post cleaning).
+        api_key: Optional API key for LLM.
+        base_url: Optional Base URL for LLM.
 
     Returns:
-        List of predicted acetal compounds likely to be artifacts.
+        List of predicted compounds likely to be artifacts.
     """
     predictions = []
 
+    if api_key:
+        print("[Cleaner] Using Agentic Virtual Reactor for predictions...")
+        agent = VirtualReactorAgent(api_key=api_key, base_url=base_url)
+        if agent.is_configured():
+            llm_preds = agent.predict_reactions(df)
+            for p in llm_preds:
+                if 'predicted_byproduct_name' in p:
+                    predictions.append({
+                        'parent_aldehyde_name': p.get('parent_molecule', 'Unknown'),
+                        'predicted_acetal_cas': 'N/A', # LLM might not know CAS
+                        'predicted_acetal_name': p['predicted_byproduct_name'],
+                        'reason': p.get('reason', f"Reaction: {p.get('reaction_type')}")
+                    })
+            return predictions
+
+    # Fallback to hardcoded logic if no API key or LLM fails
+    print("[Cleaner] Using Fallback Hardcoded Virtual Reactor...")
     if 'cas' not in df.columns:
         return predictions
 
@@ -158,6 +178,7 @@ def predict_acetals(df: pd.DataFrame) -> List[Dict]:
                 'parent_aldehyde_cas': aldehyde_cas,
                 'parent_aldehyde_name': aldehyde_name,
                 'predicted_acetal_cas': acetal_cas,
+                'predicted_acetal_name': f"{aldehyde_name} Propylene Glycol Acetal",
                 'reason': f"{aldehyde_name} + PG -> Acetal (Reaction Product)"
             })
 
