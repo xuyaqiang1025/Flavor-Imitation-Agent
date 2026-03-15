@@ -13,7 +13,6 @@ sys.path.insert(0, str(__file__).rsplit('src', 1)[0] + 'src')
 from knowledge.natural_fingerprints import NaturalFingerprintDB, NaturalFingerprint
 from knowledge.inventory_manager import InventoryManager
 from knowledge.vector_db_builder import VectorDBBuilder
-from engine.rag_inference import RAGDeconvoluter
 
 
 @dataclass
@@ -51,6 +50,7 @@ class DeconvolutionEngine:
         
         vector_db = VectorDBBuilder()
         if vector_db.is_available() and api_key:
+             from engine.rag_inference import RAGDeconvoluter
              self.rag_engine = RAGDeconvoluter(vector_db_builder=vector_db, api_key=api_key, base_url=base_url)
         else:
              self.rag_engine = None
