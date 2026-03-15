@@ -50,8 +50,8 @@ class DeconvolutionEngine:
         
         vector_db = VectorDBBuilder()
         if vector_db.is_available() and api_key:
-             from engine.rag_inference import RAGDeconvoluter
-             self.rag_engine = RAGDeconvoluter(vector_db_builder=vector_db, api_key=api_key, base_url=base_url)
+             from engine.rag_inference import HybridDeconvoluter
+             self.rag_engine = HybridDeconvoluter(vector_db_builder=vector_db, api_key=api_key, base_url=base_url)
         else:
              self.rag_engine = None
 

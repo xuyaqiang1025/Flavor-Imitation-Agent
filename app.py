@@ -87,12 +87,50 @@ def main():
         max_naturals = st.slider("最大天然物识别数", 1, 10, 5)
         clean_solvents = st.checkbox("自动去除溶剂 (PG/VG)", value=True)
         
-        st.header("4. 知识库Status")
+        st.header("4. 知识库管理")
         inv_mgr = load_resources()
         if inv_mgr:
             st.success(f"✅ 原料库: {len(inv_mgr.inventory_df)} 条")
         else:
             st.error("❌ 原料库未加载")
+
+        # Vector DB status and batch import section
+        from knowledge.vector_db_builder import VectorDBBuilder
+        _vdb = VectorDBBuilder()
+        if _vdb.is_available():
+            db_count = _vdb.count()
+            st.info(f"🧬 天然指纹库: {db_count} 条 (ChromaDB)")
+        else:
+            st.warning("❗ ChromaDB 不可用")
+
+        with st.expander("📥 导入自定义指纹数据"):
+            st.markdown("支持 **CSV / Excel / Markdown** 格式。[下载模板](data/inventory/my_extracts_template.csv)")
+            import_file = st.file_uploader(
+                "上传精油指纹文件",
+                type=["csv", "xlsx", "md"],
+                key="import_fingerprints"
+            )
+            if import_file is not None and st.button("🔄 导入并更新向量库"):
+                with st.spinner("正在解析并写入 ChromaDB..."):
+                    suffix = Path(import_file.name).suffix.lower()
+                    tmp_path = Path("temp_import") .with_suffix(suffix)
+                    tmp_path.write_bytes(import_file.read())
+                    try:
+                        vdb = VectorDBBuilder()
+                        if suffix == ".csv":
+                            n = vdb.import_from_csv(str(tmp_path))
+                        elif suffix in (".xlsx", ".xls"):
+                            n = vdb.import_from_excel(str(tmp_path))
+                        elif suffix == ".md":
+                            n = vdb.import_from_markdown(str(tmp_path))
+                        else:
+                            n = 0
+                        st.success(f"✅ 成功导入 {n} 条记录，库共 {vdb.count()} 条。")
+                        st.cache_resource.clear()  # Force reload
+                    except Exception as e:
+                        st.error(f"导入失败: {e}")
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
 
         st.markdown("---")
         st.info("💡 提示: 配置 API Key 可开启 LLM 智能调香功能")
